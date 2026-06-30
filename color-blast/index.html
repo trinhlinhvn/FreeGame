@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Blast - Match 3 Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-container {
+            text-align: center;
+            position: relative;
+        }
+
+        #gameCanvas {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            display: block;
+            margin: 0 auto;
+            cursor: pointer;
+        }
+
+        .ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            width: 90%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-box {
+            background: rgba(255,255,255,0.95);
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .stat-label {
+            font-size: 0.6em;
+            color: #999;
+            display: block;
+        }
+
+        .combo-display {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 20px;
+            font-size: 2.5em;
+            font-weight: bold;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 15;
+            animation: comboAnim 0.5s ease-out;
+        }
+
+        @keyframes comboAnim {
+            0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+            50% { transform: translateX(-50%) scale(1.2); }
+            100% { transform: translateX(-50%) scale(1); opacity: 1; }
+        }
+
+        .game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.98);
+            padding: 40px;
+            border-radius: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            display: none;
+            z-index: 20;
+            min-width: 350px;
+        }
+
+        .game-over-screen.show {
+            display: block;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .game-over-screen h2 {
+            color: #764ba2;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .final-stats {
+            margin: 20px 0;
+        }
+
+        .final-stat {
+            font-size: 1.5em;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .restart-btn, .home-btn {
+            padding: 15px 40px;
+            font-size: 1.3em;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s ease;
+            margin: 10px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            color: white;
+        }
+
+        .home-btn {
+            background: #f5f5f5;
+            color: #667eea;
+        }
+
+        .restart-btn:hover, .home-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.9);
+            padding: 15px 30px;
+            border-radius: 15px;
+            font-size: 1.1em;
+            color: #667eea;
+            font-weight: bold;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .instructions.hide {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="ui-panel">
+            <div class="stat-box">
+                <span class="stat-label">SCORE</span>
+                <span id="scoreText">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">MOVES</span>
+                <span id="movesText">30</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">LEVEL</span>
+                <span id="levelText">1</span>
+            </div>
+        </div>
+
+        <div class="combo-display" id="comboDisplay">COMBO x3! 🔥</div>
+
+        <canvas id="gameCanvas" width="500" height="500"></canvas>
+
+        <div class="instructions" id="instructions">
+            🎯 Match 3+ blocks of the same color!<br>
+            More blocks = higher score!
+        </div>
+
+        <div class="game-over-screen" id="gameOverScreen">
+            <h2 id="gameOverTitle">🎮 Level Complete!</h2>
+            <div class="final-stats">
+                <div class="final-stat">Score: <span id="finalScore">0</span></div>
+                <div class="final-stat">Best Combo: <span id="bestCombo">0</span></div>
+            </div>
+            <button class="restart-btn" onclick="nextLevel()">➡️ Next Level</button>
+            <button class="home-btn" onclick="location.href='../index.html'">🏠 Home</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game configuration
+        const GRID_SIZE = 8;
+        const CELL_SIZE = 60;
+        const GRID_OFFSET_X = 10;
+        const GRID_OFFSET_Y = 10;
+        const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+
+        // Game state
+        let grid = [];
+        let selectedCell = null;
+        let score = 0;
+        let moves = 30;
+        let level = 1;
+        let combo = 0;
+        let bestCombo = 0;
+        let isAnimating = false;
+        let particles = [];
+
+        // Initialize grid
+        function initGrid() {
+            grid = [];
+            for (let row = 0; row < GRID_SIZE; row++) {
+                grid[row] = [];
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    grid[row][col] = {
+                        color: getRandomColor(),
+                        y: row * CELL_SIZE + GRID_OFFSET_Y,
+                        targetY: row * CELL_SIZE + GRID_OFFSET_Y,
+                        falling: false
+                    };
+                }
+            }
+            // Ensure no initial matches
+            removeInitialMatches();
+        }
+
+        function getRandomColor() {
+            return COLORS[Math.floor(Math.random() * COLORS.length)];
+        }
+
+        function removeInitialMatches() {
+            let hasMatches = true;
+            while (hasMatches) {
+                hasMatches = false;
+                for (let row = 0; row < GRID_SIZE; row++) {
+                    for (let col = 0; col < GRID_SIZE; col++) {
+                        const matches = findMatches(row, col);
+                        if (matches.length >= 3) {
+                            grid[row][col].color = getRandomColor();
+                            hasMatches = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid cells
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const cell = grid[row][col];
+                    const x = col * CELL_SIZE + GRID_OFFSET_X;
+                    const y = cell.y;
+
+                    // Cell background
+                    ctx.fillStyle = '#ecf0f1';
+                    ctx.fillRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+                    ctx.strokeStyle = '#bdc3c7';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+
+                    // Cell color
+                    if (cell.color) {
+                        ctx.fillStyle = cell.color;
+                        ctx.beginPath();
+                        ctx.arc(x + CELL_SIZE/2, y + CELL_SIZE/2, CELL_SIZE/2 - 10, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Highlight
+                        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                        ctx.beginPath();
+                        ctx.arc(x + CELL_SIZE/2 - 5, y + CELL_SIZE/2 - 5, CELL_SIZE/4, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // Selected cell highlight
+                    if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
+                        ctx.strokeStyle = '#f39c12';
+                        ctx.lineWidth = 4;
+                        ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+                    }
+                }
+            }
+
+            // Draw particles
+            particles.forEach((p, index) => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.alpha;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2; // gravity
+                p.alpha -= 0.02;
+
+                if (p.alpha <= 0) {
+                    particles.splice(index, 1);
+                }
+            });
+        }
+
+        function gameLoop() {
+            updateFalling();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateFalling() {
+            let stillFalling = false;
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const cell = grid[row][col];
+                    if (cell.falling) {
+                        const diff = cell.targetY - cell.y;
+                        if (Math.abs(diff) > 1) {
+                            cell.y += diff * 0.3;
+                            stillFalling = true;
+                        } else {
+                            cell.y = cell.targetY;
+                            cell.falling = false;
+                        }
+                    }
+                }
+            }
+            isAnimating = stillFalling;
+
+            if (!isAnimating && !stillFalling) {
+                checkAllMatches();
+            }
+        }
+
+        function handleClick(e) {
+            if (isAnimating || moves <= 0) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const col = Math.floor((x - GRID_OFFSET_X) / CELL_SIZE);
+            const row = Math.floor((y - GRID_OFFSET_Y) / CELL_SIZE);
+
+            if (col >= 0 && col < GRID_SIZE && row >= 0 && row < GRID_SIZE) {
+                if (!selectedCell) {
+                    selectedCell = { row, col };
+                } else {
+                    // Check if adjacent
+                    const isAdjacent =
+                        (Math.abs(selectedCell.row - row) === 1 && selectedCell.col === col) ||
+                        (Math.abs(selectedCell.col - col) === 1 && selectedCell.row === row);
+
+                    if (isAdjacent) {
+                        swapCells(selectedCell.row, selectedCell.col, row, col);
+                        selectedCell = null;
+                    } else {
+                        selectedCell = { row, col };
+                    }
+                }
+            }
+            document.getElementById('instructions').classList.add('hide');
+        }
+
+        function swapCells(row1, col1, row2, col2) {
+            const temp = grid[row1][col1].color;
+            grid[row1][col1].color = grid[row2][col2].color;
+            grid[row2][col2].color = temp;
+
+            // Check for matches
+            const matches1 = findMatches(row1, col1);
+            const matches2 = findMatches(row2, col2);
+
+            if (matches1.length >= 3 || matches2.length >= 3) {
+                moves--;
+                document.getElementById('movesText').textContent = moves;
+                combo = 0;
+                setTimeout(() => checkAllMatches(), 300);
+            } else {
+                // Swap back if no match
+                const temp = grid[row1][col1].color;
+                grid[row1][col1].color = grid[row2][col2].color;
+                grid[row2][col2].color = temp;
+            }
+        }
+
+        function findMatches(row, col) {
+            const color = grid[row][col].color;
+            if (!color) return [];
+
+            const matches = [{row, col}];
+
+            // Check horizontal
+            let left = col - 1;
+            while (left >= 0 && grid[row][left].color === color) {
+                matches.push({row, col: left});
+                left--;
+            }
+            let right = col + 1;
+            while (right < GRID_SIZE && grid[row][right].color === color) {
+                matches.push({row, col: right});
+                right++;
+            }
+
+            // Check vertical
+            let up = row - 1;
+            while (up >= 0 && grid[up][col].color === color) {
+                matches.push({row: up, col});
+                up--;
+            }
+            let down = row + 1;
+            while (down < GRID_SIZE && grid[down][col].color === color) {
+                matches.push({row: down, col});
+                down++;
+            }
+
+            // Remove duplicates
+            const unique = [];
+            const seen = new Set();
+            matches.forEach(m => {
+                const key = `${m.row},${m.col}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(m);
+                }
+            });
+
+            return unique.length >= 3 ? unique : [];
+        }
+
+        function checkAllMatches() {
+            let allMatches = [];
+
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const matches = findMatches(row, col);
+                    if (matches.length >= 3) {
+                        matches.forEach(m => {
+                            if (!allMatches.some(am => am.row === m.row && am.col === m.col)) {
+                                allMatches.push(m);
+                            }
+                        });
+                    }
+                }
+            }
+
+            if (allMatches.length > 0) {
+                removeMatches(allMatches);
+                combo++;
+                if (combo > bestCombo) bestCombo = combo;
+
+                if (combo >= 3) {
+                    showCombo(combo);
+                }
+            } else if (moves <= 0) {
+                endGame();
+            }
+        }
+
+        function removeMatches(matches) {
+            const baseScore = matches.length * 10;
+            const comboBonus = combo * 5;
+            const totalScore = baseScore + comboBonus;
+
+            score += totalScore;
+            document.getElementById('scoreText').textContent = score;
+
+            matches.forEach(m => {
+                createParticles(m.col * CELL_SIZE + GRID_OFFSET_X + CELL_SIZE/2,
+                              m.row * CELL_SIZE + GRID_OFFSET_Y + CELL_SIZE/2,
+                              grid[m.row][m.col].color);
+                grid[m.row][m.col].color = null;
+            });
+
+            isAnimating = true;
+            setTimeout(() => dropCells(), 200);
+        }
+
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5 - 2,
+                    size: Math.random() * 4 + 2,
+                    color: color,
+                    alpha: 1
+                });
+            }
+        }
+
+        function dropCells() {
+            for (let col = 0; col < GRID_SIZE; col++) {
+                let emptyRow = GRID_SIZE - 1;
+                for (let row = GRID_SIZE - 1; row >= 0; row--) {
+                    if (grid[row][col].color) {
+                        if (row !== emptyRow) {
+                            grid[emptyRow][col].color = grid[row][col].color;
+                            grid[row][col].color = null;
+                        }
+                        emptyRow--;
+                    }
+                }
+
+                // Fill empty cells from top
+                for (let row = 0; row <= emptyRow; row++) {
+                    grid[row][col].color = getRandomColor();
+                    grid[row][col].y = -CELL_SIZE;
+                    grid[row][col].targetY = row * CELL_SIZE + GRID_OFFSET_Y;
+                    grid[row][col].falling = true;
+                }
+            }
+        }
+
+        function showCombo(comboCount) {
+            const comboEl = document.getElementById('comboDisplay');
+            comboEl.textContent = `COMBO x${comboCount}! 🔥`;
+            comboEl.style.display = 'block';
+            setTimeout(() => {
+                comboEl.style.display = 'none';
+            }, 1000);
+        }
+
+        function endGame() {
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('bestCombo').textContent = bestCombo;
+
+            const targetScore = level * 500;
+            if (score >= targetScore) {
+                document.getElementById('gameOverTitle').textContent = '🎉 Level Complete!';
+                document.querySelector('.restart-btn').textContent = '➡️ Next Level';
+                document.querySelector('.restart-btn').onclick = nextLevel;
+            } else {
+                document.getElementById('gameOverTitle').textContent = '😢 Game Over!';
+                document.querySelector('.restart-btn').textContent = '🔄 Try Again';
+                document.querySelector('.restart-btn').onclick = restartGame;
+            }
+
+            document.getElementById('gameOverScreen').classList.add('show');
+        }
+
+        function nextLevel() {
+            level++;
+            moves = 30;
+            score = 0;
+            combo = 0;
+            bestCombo = 0;
+
+            document.getElementById('levelText').textContent = level;
+            document.getElementById('movesText').textContent = moves;
+            document.getElementById('scoreText').textContent = score;
+            document.getElementById('gameOverScreen').classList.remove('show');
+            document.getElementById('instructions').classList.remove('hide');
+
+            initGrid();
+        }
+
+        function restartGame() {
+            level = 1;
+            moves = 30;
+            score = 0;
+            combo = 0;
+            bestCombo = 0;
+
+            document.getElementById('levelText').textContent = level;
+            document.getElementById('movesText').textContent = moves;
+            document.getElementById('scoreText').textContent = score;
+            document.getElementById('gameOverScreen').classList.remove('show');
+            document.getElementById('instructions').classList.remove('hide');
+
+            initGrid();
+        }
+
+        // Event listeners
+        canvas.addEventListener('click', handleClick);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleClick(e.touches[0]);
+        });
+
+        // Initialize and start game
+        initGrid();
+        gameLoop();
+    </script>
+</body>
+</html>

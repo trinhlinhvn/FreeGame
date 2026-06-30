@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Runner Dash - Endless Runner Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-container {
+            text-align: center;
+            position: relative;
+        }
+
+        #gameCanvas {
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            display: block;
+            margin: 0 auto;
+        }
+
+        .ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            width: 90%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-box {
+            background: rgba(255,255,255,0.95);
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-size: 1.5em;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .stat-box.score {
+            color: #f39c12;
+        }
+
+        .stat-box.distance {
+            color: #e74c3c;
+        }
+
+        .stat-box.coins {
+            color: #f1c40f;
+        }
+
+        .stat-label {
+            font-size: 0.6em;
+            color: #999;
+            display: block;
+        }
+
+        .game-over-screen, .start-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.98);
+            padding: 40px;
+            border-radius: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            display: none;
+            z-index: 20;
+            min-width: 350px;
+        }
+
+        .game-over-screen.show, .start-screen.show {
+            display: block;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .screen-title {
+            color: #764ba2;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .final-stats {
+            margin: 20px 0;
+        }
+
+        .final-stat {
+            font-size: 1.5em;
+            margin: 10px 0;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.3em;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s ease;
+            margin: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #667eea;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .controls-hint {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .controls-hint div {
+            margin: 10px 0;
+        }
+
+        .power-indicator {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            background: rgba(255,255,255,0.9);
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            display: none;
+        }
+
+        .power-indicator.active {
+            display: block;
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="ui-panel">
+            <div class="stat-box score">
+                <span class="stat-label">SCORE</span>
+                <span id="scoreText">0</span>
+            </div>
+            <div class="stat-box distance">
+                <span class="stat-label">DISTANCE</span>
+                <span id="distanceText">0m</span>
+            </div>
+            <div class="stat-box coins">
+                <span class="stat-label">💰</span>
+                <span id="coinsText">0</span>
+            </div>
+        </div>
+
+        <div class="power-indicator" id="powerIndicator">
+            ⭐ INVINCIBLE!
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+        <div class="start-screen show" id="startScreen">
+            <div class="screen-title">🏃 Runner Dash</div>
+            <p style="font-size: 1.2em; color: #666; margin: 20px 0;">
+                Endless runner! Dodge obstacles,<br>
+                collect coins, beat your record!
+            </p>
+            <div class="controls-hint">
+                <div><strong>🎮 Điều khiển:</strong></div>
+                <div>⬆️ Space / Click / Tap - Nhảy</div>
+                <div>⬇️ Down Arrow - Trượt</div>
+            </div>
+            <button class="btn btn-primary" onclick="startGame()">▶️ Start Game</button>
+            <button class="btn btn-secondary" onclick="location.href='../index.html'">🏠 Home</button>
+        </div>
+
+        <div class="game-over-screen" id="gameOverScreen">
+            <div class="screen-title">🎮 Game Over!</div>
+            <div class="final-stats">
+                <div class="final-stat">Score: <span id="finalScore" style="color: #f39c12;">0</span></div>
+                <div class="final-stat">Distance: <span id="finalDistance" style="color: #e74c3c;">0m</span></div>
+                <div class="final-stat">Coins: <span id="finalCoins" style="color: #f1c40f;">0</span></div>
+                <div class="final-stat" style="font-size: 1.2em; color: #667eea; margin-top: 15px;">
+                    Best: <span id="bestScore">0</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="restartGame()">🔄 Play Again</button>
+            <button class="btn btn-secondary" onclick="location.href='../index.html'">🏠 Home</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        let gameState = 'start'; // start, playing, gameover
+        let score = 0;
+        let distance = 0;
+        let coins = 0;
+        let bestScore = localStorage.getItem('runnerDashBest') || 0;
+        let gameSpeed = 6;
+        let gravity = 0.8;
+
+        // Player
+        const player = {
+            x: 100,
+            y: 0,
+            width: 40,
+            height: 50,
+            velocityY: 0,
+            isJumping: false,
+            isSliding: false,
+            invincible: false,
+            invincibleTimer: 0
+        };
+
+        // Ground
+        const groundY = canvas.height - 60;
+        player.y = groundY - player.height;
+
+        // Obstacles
+        let obstacles = [];
+        let obstacleTimer = 0;
+        const obstacleInterval = 120;
+
+        // Coins
+        let coinsList = [];
+        let coinTimer = 0;
+
+        // Power-ups
+        let powerUps = [];
+        let powerUpTimer = 0;
+
+        // Clouds
+        let clouds = [];
+        for (let i = 0; i < 5; i++) {
+            clouds.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * 100 + 20,
+                width: 60 + Math.random() * 40,
+                speed: 0.5 + Math.random() * 0.5
+            });
+        }
+
+        function startGame() {
+            gameState = 'playing';
+            score = 0;
+            distance = 0;
+            coins = 0;
+            gameSpeed = 6;
+            obstacles = [];
+            coinsList = [];
+            powerUps = [];
+            obstacleTimer = 0;
+            coinTimer = 0;
+            powerUpTimer = 0;
+            player.y = groundY - player.height;
+            player.velocityY = 0;
+            player.isJumping = false;
+            player.isSliding = false;
+            player.invincible = false;
+            player.invincibleTimer = 0;
+
+            document.getElementById('startScreen').classList.remove('show');
+            document.getElementById('scoreText').textContent = '0';
+            document.getElementById('distanceText').textContent = '0m';
+            document.getElementById('coinsText').textContent = '0';
+
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (gameState === 'playing') {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function update() {
+            // Update distance and score
+            distance += 0.1;
+            score = Math.floor(distance * 10) + coins * 50;
+
+            // Increase difficulty
+            gameSpeed = 6 + distance * 0.01;
+
+            // Update player
+            if (player.isJumping) {
+                player.velocityY += gravity;
+                player.y += player.velocityY;
+
+                if (player.y >= groundY - player.height) {
+                    player.y = groundY - player.height;
+                    player.velocityY = 0;
+                    player.isJumping = false;
+                }
+            }
+
+            // Update invincibility
+            if (player.invincible) {
+                player.invincibleTimer--;
+                if (player.invincibleTimer <= 0) {
+                    player.invincible = false;
+                    document.getElementById('powerIndicator').classList.remove('active');
+                }
+            }
+
+            // Update clouds
+            clouds.forEach(cloud => {
+                cloud.x -= cloud.speed;
+                if (cloud.x < -cloud.width) {
+                    cloud.x = canvas.width;
+                    cloud.y = Math.random() * 100 + 20;
+                }
+            });
+
+            // Spawn obstacles
+            obstacleTimer++;
+            if (obstacleTimer > obstacleInterval - gameSpeed * 2) {
+                obstacleTimer = 0;
+                const type = Math.random() > 0.5 ? 'box' : 'spike';
+                const height = type === 'box' ? 40 + Math.random() * 20 : 30;
+                obstacles.push({
+                    x: canvas.width,
+                    y: groundY - height,
+                    width: 30,
+                    height: height,
+                    type: type
+                });
+            }
+
+            // Update obstacles
+            obstacles.forEach((obs, index) => {
+                obs.x -= gameSpeed;
+                if (obs.x < -obs.width) {
+                    obstacles.splice(index, 1);
+                }
+
+                // Collision detection
+                if (!player.invincible && checkCollision(player, obs)) {
+                    gameOver();
+                }
+            });
+
+            // Spawn coins
+            coinTimer++;
+            if (coinTimer > 60) {
+                coinTimer = 0;
+                const coinY = groundY - 80 - Math.random() * 100;
+                coinsList.push({
+                    x: canvas.width,
+                    y: coinY,
+                    radius: 15,
+                    collected: false
+                });
+            }
+
+            // Update coins
+            coinsList.forEach((coin, index) => {
+                coin.x -= gameSpeed;
+                if (coin.x < -coin.radius * 2) {
+                    coinsList.splice(index, 1);
+                }
+
+                // Coin collection
+                if (!coin.collected && checkCoinCollision(player, coin)) {
+                    coin.collected = true;
+                    coins++;
+                    coinsList.splice(index, 1);
+                }
+            });
+
+            // Spawn power-ups
+            powerUpTimer++;
+            if (powerUpTimer > 500) {
+                powerUpTimer = 0;
+                powerUps.push({
+                    x: canvas.width,
+                    y: groundY - 100,
+                    width: 30,
+                    height: 30,
+                    type: 'star'
+                });
+            }
+
+            // Update power-ups
+            powerUps.forEach((powerUp, index) => {
+                powerUp.x -= gameSpeed;
+                if (powerUp.x < -powerUp.width) {
+                    powerUps.splice(index, 1);
+                }
+
+                // Power-up collection
+                if (checkCollision(player, powerUp)) {
+                    player.invincible = true;
+                    player.invincibleTimer = 300;
+                    document.getElementById('powerIndicator').classList.add('active');
+                    powerUps.splice(index, 1);
+                }
+            });
+
+            // Update UI
+            document.getElementById('scoreText').textContent = score;
+            document.getElementById('distanceText').textContent = Math.floor(distance) + 'm';
+            document.getElementById('coinsText').textContent = coins;
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw clouds
+            clouds.forEach(cloud => {
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.beginPath();
+                ctx.arc(cloud.x, cloud.y, cloud.width/3, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width/3, cloud.y - 10, cloud.width/4, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width/2, cloud.y, cloud.width/3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw ground
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+            // Ground detail
+            ctx.fillStyle = '#27ae60';
+            ctx.fillRect(0, groundY, canvas.width, 5);
+
+            // Draw player
+            const playerHeight = player.isSliding ? player.height / 2 : player.height;
+            const playerY = player.isSliding ? player.y + player.height / 2 : player.y;
+
+            if (player.invincible) {
+                ctx.fillStyle = `hsl(${Date.now() % 360}, 100%, 60%)`;
+            } else {
+                ctx.fillStyle = '#e74c3c';
+            }
+
+            // Player shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(player.x + 5, groundY - 5, player.width, 5);
+
+            // Player body
+            ctx.fillStyle = player.invincible ? `hsl(${Date.now() % 360}, 100%, 60%)` : '#e74c3c';
+            ctx.fillRect(player.x, playerY, player.width, playerHeight);
+
+            // Player eyes
+            ctx.fillStyle = 'white';
+            ctx.fillRect(player.x + 10, playerY + 10, 8, 8);
+            ctx.fillRect(player.x + 22, playerY + 10, 8, 8);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(player.x + 13, playerY + 13, 3, 3);
+            ctx.fillRect(player.x + 25, playerY + 13, 3, 3);
+
+            // Draw obstacles
+            obstacles.forEach(obs => {
+                if (obs.type === 'box') {
+                    ctx.fillStyle = '#8e44ad';
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                    ctx.fillRect(obs.x, obs.y, obs.width, 5);
+                } else {
+                    ctx.fillStyle = '#c0392b';
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x + obs.width/2, obs.y);
+                    ctx.lineTo(obs.x, obs.y + obs.height);
+                    ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            });
+
+            // Draw coins
+            coinsList.forEach(coin => {
+                ctx.fillStyle = '#f1c40f';
+                ctx.beginPath();
+                ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#f39c12';
+                ctx.beginPath();
+                ctx.arc(coin.x, coin.y, coin.radius - 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#f1c40f';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('$', coin.x, coin.y);
+            });
+
+            // Draw power-ups
+            powerUps.forEach(powerUp => {
+                ctx.fillStyle = '#f39c12';
+                ctx.save();
+                ctx.translate(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2);
+                ctx.rotate(Date.now() / 200);
+                ctx.font = 'bold 30px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('⭐', 0, 0);
+                ctx.restore();
+            });
+        }
+
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + (player.isSliding ? player.height/2 : player.height) > rect2.y;
+        }
+
+        function checkCoinCollision(player, coin) {
+            const playerCenterX = player.x + player.width / 2;
+            const playerCenterY = player.y + player.height / 2;
+            const distance = Math.sqrt(
+                Math.pow(playerCenterX - coin.x, 2) +
+                Math.pow(playerCenterY - coin.y, 2)
+            );
+            return distance < coin.radius + player.width / 2;
+        }
+
+        function jump() {
+            if (gameState !== 'playing') return;
+            if (!player.isJumping) {
+                player.isJumping = true;
+                player.velocityY = -15;
+            }
+        }
+
+        function slide() {
+            if (gameState !== 'playing') return;
+            if (!player.isJumping) {
+                player.isSliding = true;
+                setTimeout(() => {
+                    player.isSliding = false;
+                }, 500);
+            }
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('runnerDashBest', bestScore);
+            }
+
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('finalDistance').textContent = Math.floor(distance) + 'm';
+            document.getElementById('finalCoins').textContent = coins;
+            document.getElementById('bestScore').textContent = bestScore;
+            document.getElementById('gameOverScreen').classList.add('show');
+        }
+
+        function restartGame() {
+            document.getElementById('gameOverScreen').classList.remove('show');
+            startGame();
+        }
+
+        // Event listeners
+        canvas.addEventListener('click', jump);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                jump();
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                slide();
+            }
+        });
+
+        // Draw initial state
+        draw();
+    </script>
+</body>
+</html>

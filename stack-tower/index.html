@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stack Tower - Stack Blocks High</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-container {
+            text-align: center;
+            position: relative;
+        }
+
+        #gameCanvas {
+            background: #87CEEB;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            display: block;
+            margin: 0 auto;
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            width: 90%;
+        }
+
+        .score-display {
+            background: rgba(255,255,255,0.95);
+            padding: 15px 30px;
+            border-radius: 15px;
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            display: inline-block;
+        }
+
+        .game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.98);
+            padding: 40px;
+            border-radius: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            display: none;
+            z-index: 20;
+            min-width: 300px;
+        }
+
+        .game-over-screen.show {
+            display: block;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .game-over-screen h2 {
+            color: #764ba2;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .final-score {
+            font-size: 3em;
+            color: #667eea;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .high-score {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .restart-btn, .home-btn {
+            padding: 15px 40px;
+            font-size: 1.3em;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s ease;
+            margin: 10px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .home-btn {
+            background: #f5f5f5;
+            color: #667eea;
+        }
+
+        .restart-btn:hover, .home-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .restart-btn:active, .home-btn:active {
+            transform: scale(0.95);
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.9);
+            padding: 15px 30px;
+            border-radius: 15px;
+            font-size: 1.2em;
+            color: #667eea;
+            font-weight: bold;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.05); }
+        }
+
+        .instructions.hide {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="ui-overlay">
+            <div class="score-display">
+                <span id="scoreText">Score: 0</span>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+        <div class="instructions" id="instructions">
+            👆 Click/Tap to drop the block!
+        </div>
+
+        <div class="game-over-screen" id="gameOverScreen">
+            <h2>🎮 Game Over!</h2>
+            <div class="final-score" id="finalScore">0</div>
+            <div class="high-score" id="highScore">Best: 0</div>
+            <button class="restart-btn" onclick="restartGame()">🔄 Play Again</button>
+            <button class="home-btn" onclick="location.href='../index.html'">🏠 Home</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game State
+        let gameState = 'playing'; // playing, gameover
+        let score = 0;
+        let highScore = localStorage.getItem('stackTowerHighScore') || 0;
+        let speed = 2;
+        let direction = 1;
+
+        // Box configuration
+        const boxHeight = 30;
+        let currentBox = {
+            x: 0,
+            y: canvas.height - boxHeight,
+            width: 100,
+            height: boxHeight,
+            color: getRandomColor()
+        };
+
+        let boxes = [{
+            x: canvas.width / 2 - 50,
+            y: canvas.height - boxHeight,
+            width: 100,
+            height: boxHeight,
+            color: '#8e44ad'
+        }];
+
+        // Color palette
+        const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
+
+        function getRandomColor() {
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (gameState === 'playing') {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function update() {
+            // Move current box
+            currentBox.x += speed * direction;
+
+            // Bounce at edges
+            if (currentBox.x <= 0 || currentBox.x + currentBox.width >= canvas.width) {
+                direction *= -1;
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw ground
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(0, canvas.height - 10, canvas.width, 10);
+
+            // Draw stacked boxes
+            for (let box of boxes) {
+                drawBox(box);
+            }
+
+            // Draw current moving box
+            drawBox(currentBox);
+        }
+
+        function drawBox(box) {
+            // Box shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(box.x + 3, box.y + 3, box.width, box.height);
+
+            // Box body
+            ctx.fillStyle = box.color;
+            ctx.fillRect(box.x, box.y, box.width, box.height);
+
+            // Box highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.fillRect(box.x, box.y, box.width, box.height / 3);
+
+            // Box border
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+        }
+
+        function dropBox() {
+            if (gameState !== 'playing') return;
+
+            // Hide instructions
+            document.getElementById('instructions').classList.add('hide');
+
+            const lastBox = boxes[boxes.length - 1];
+
+            // Calculate overlap
+            const overlap = calculateOverlap(currentBox, lastBox);
+
+            if (overlap <= 0) {
+                // Game over - no overlap
+                gameOver();
+                return;
+            }
+
+            // Perfect drop bonus
+            const isPerfect = Math.abs(currentBox.x - lastBox.x) < 5;
+            if (isPerfect) {
+                score += 10;
+                showPerfectEffect(currentBox);
+            } else {
+                score += 1;
+            }
+
+            // Update score
+            document.getElementById('scoreText').textContent = `Score: ${score}`;
+
+            // Create new box with reduced width
+            const newBox = {
+                x: Math.max(currentBox.x, lastBox.x),
+                y: currentBox.y - boxHeight,
+                width: overlap,
+                height: boxHeight,
+                color: getRandomColor()
+            };
+
+            boxes.push(newBox);
+
+            // Increase difficulty
+            speed += 0.1;
+
+            // Move camera up if needed
+            if (newBox.y < canvas.height / 3) {
+                for (let box of boxes) {
+                    box.y += boxHeight;
+                }
+                newBox.y = canvas.height / 3;
+            }
+
+            // Setup next box
+            currentBox = {
+                x: 0,
+                y: newBox.y - boxHeight,
+                width: newBox.width,
+                height: boxHeight,
+                color: getRandomColor()
+            };
+        }
+
+        function calculateOverlap(box1, box2) {
+            const left = Math.max(box1.x, box2.x);
+            const right = Math.min(box1.x + box1.width, box2.x + box2.width);
+            return Math.max(0, right - left);
+        }
+
+        function showPerfectEffect(box) {
+            // Visual feedback for perfect drops
+            ctx.fillStyle = 'rgba(255,215,0,0.6)';
+            ctx.fillRect(box.x - 10, box.y - 10, box.width + 20, box.height + 20);
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+
+            // Update high score
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('stackTowerHighScore', highScore);
+            }
+
+            // Show game over screen
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('highScore').textContent = `Best: ${highScore}`;
+            document.getElementById('gameOverScreen').classList.add('show');
+        }
+
+        function restartGame() {
+            // Reset game state
+            gameState = 'playing';
+            score = 0;
+            speed = 2;
+            direction = 1;
+
+            // Reset boxes
+            boxes = [{
+                x: canvas.width / 2 - 50,
+                y: canvas.height - boxHeight,
+                width: 100,
+                height: boxHeight,
+                color: '#8e44ad'
+            }];
+
+            currentBox = {
+                x: 0,
+                y: canvas.height - boxHeight * 2,
+                width: 100,
+                height: boxHeight,
+                color: getRandomColor()
+            };
+
+            // Update UI
+            document.getElementById('scoreText').textContent = 'Score: 0';
+            document.getElementById('gameOverScreen').classList.remove('show');
+            document.getElementById('instructions').classList.remove('hide');
+
+            // Restart game loop
+            gameLoop();
+        }
+
+        // Event listeners
+        canvas.addEventListener('click', dropBox);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            dropBox();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && gameState === 'playing') {
+                e.preventDefault();
+                dropBox();
+            }
+        });
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>
